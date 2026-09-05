@@ -3,7 +3,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/nilocnt/adguard-debian?style=for-the-badge)](https://github.com/nilocnt/adguard-debian/releases)
 [![Package](https://img.shields.io/badge/package-.deb-orange?style=for-the-badge&logo=debian)](https://github.com/nilocnt/adguard-debian/releases/latest)
 [![Architecture](https://img.shields.io/badge/architecture-amd64-green?style=for-the-badge)](https://github.com/nilocnt/adguard-debian/releases/latest)
-[![License](https://img.shields.io/badge/license-see%20LICENSE-blue?style=for-the-badge)](LICENSE)
+[![License](https://img.shields.io/badge/license-GLP--3.0-blue?style=for-the-badge)](LICENSE)
 
 An unofficial Debian package for [AdGuard CLI](https://adguard.com/en/adguard-cli/overview.html), configured to run as a system-wide systemd service.
 
