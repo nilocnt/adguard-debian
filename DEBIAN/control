@@ -1,0 +1,9 @@
+Package: adguard-debian
+Version: 1.0.0
+Section: admin
+Priority: optional
+Architecture: amd64
+Depends: adduser
+Maintainer: nilocnt <nilocnt@gmail.com>
+Homepage: https://github.com/nilocnt/adguard-debian
+Description: AdGuard for Linux is the world’s first system-wide Linux ad blocker. Block ads and trackers at the device level, select from pre-installed filters, or add your own — all through the command-line interface.

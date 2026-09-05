@@ -1,0 +1,25 @@
+# Debian build artifacts
+*.deb
+*.changes
+*.dsc
+*.tar.gz
+debian/tmp/
+debian/adguard-debian/
+debian/*.log
+
+# Build directories
+build/
+dist/
+.build/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak

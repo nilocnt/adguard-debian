@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+legacy_unit=/etc/systemd/system/adguard-cli.service
+package_unit=/usr/lib/adguard-cli/adguard-cli.service
+
+case "$1" in
+    install|upgrade)
+        if [ -L "$legacy_unit" ] && [ "$(readlink "$legacy_unit")" = "$package_unit" ]; then
+            rm -f "$legacy_unit"
+        fi
+    ;;
+esac
+
+exit 0
