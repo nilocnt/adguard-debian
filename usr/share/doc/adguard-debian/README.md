@@ -188,14 +188,14 @@ sudo rm -rf /var/lib/adguard-cli
 This repository contains a prepared Debian package tree. Build it with:
 
 ```bash
-dpkg-deb --build --root-owner-group . ../adguard-debian_1.0.0_amd64.deb
+dpkg-deb --build --root-owner-group . ../adguard-debian_1.0.0-1_amd64.deb
 ```
 
 Inspect the generated package with:
 
 ```bash
-dpkg-deb --info ../adguard-debian_1.0.0_amd64.deb
-dpkg-deb --contents ../adguard-debian_1.0.0_amd64.deb
+dpkg-deb --info ../adguard-debian_1.0.0-1_amd64.deb
+dpkg-deb --contents ../adguard-debian_1.0.0-1_amd64.deb
 ```
 
 Generated packages and build artifacts are excluded by `.gitignore`.
