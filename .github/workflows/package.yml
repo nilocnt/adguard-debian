@@ -36,3 +36,10 @@ jobs:
 
       - name: Run lintian
         run: lintian --tag-display-limit 0 ../adguard-debian.deb
+
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: adguard-debian
+          path: ../adguard-debian.deb
+          if-no-files-found: error
