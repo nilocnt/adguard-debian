@@ -38,10 +38,10 @@ The package depends on `adduser` to create the dedicated `adguard` system user a
 
 ## Installation
 
-Install an existing package with:
+Download the latest package from the [GitHub Releases page](https://github.com/nilocnt/adguard-debian/releases/latest), then install it with:
 
 ```bash
-sudo apt install ./adguard-debian_1.0.0_amd64.deb
+sudo apt install ./adguard-debian_VERSION_amd64.deb
 ```
 
 During installation, the package:
