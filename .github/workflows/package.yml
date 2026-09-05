@@ -1,0 +1,35 @@
+name: Build and validate Debian package
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Debian packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y lintian
+
+      - name: Build package
+        run: dpkg-deb --build --root-owner-group . ../adguard-debian.deb
+
+      - name: Validate package metadata
+        run: |
+          dpkg-deb --info ../adguard-debian.deb
+          dpkg-deb --contents ../adguard-debian.deb
+
+      - name: Run lintian
+        run: lintian --no-tag-display-limit ../adguard-debian.deb
