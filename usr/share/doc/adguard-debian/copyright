@@ -1,0 +1,17 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: AdGuard CLI
+Upstream-Contact: https://adguard.com/en/adguard-cli/overview.html
+Source: https://adguard.com/en/adguard-linux/overview.html
+
+Files: *
+Copyright: AdGuard
+License: See upstream terms
+ AdGuard CLI components included in this package are distributed under
+ the applicable upstream license and redistribution terms.
+ See the official AdGuard documentation and product terms for details.
+
+Files: debian/*
+Copyright: 2026 nilocnt
+License: See upstream terms
+ This package's Debian integration is provided as downstream packaging
+ work and does not modify the upstream licensing terms of AdGuard CLI.

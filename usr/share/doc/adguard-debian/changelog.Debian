@@ -1,0 +1,8 @@
+adguard-debian (1.0.0) unstable; urgency=medium
+
+  * Package AdGuard CLI for Debian-based systems.
+  * Add systemd integration with a dedicated adguard service account.
+  * Store persistent service data under /var/lib/adguard-cli.
+  * Support migration from legacy installation data paths.
+
+ -- nilocnt <nilocnt@gmail.com>  Sat, 05 Sep 2026 19:40:00 -0300
