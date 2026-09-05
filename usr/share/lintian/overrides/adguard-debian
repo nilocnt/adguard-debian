@@ -1,0 +1,4 @@
+adguard-debian: embedded-library nspr [usr/lib/adguard-cli/certutil]
+adguard-debian: embedded-library nss [usr/lib/adguard-cli/certutil]
+adguard-debian: embedded-library zlib [usr/lib/adguard-cli/*]
+adguard-debian: statically-linked-binary [usr/lib/adguard-cli/*]

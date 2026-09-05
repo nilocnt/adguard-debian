@@ -26,7 +26,7 @@ jobs:
       - name: Build package
         run: |
           mkdir -p "$RUNNER_TEMP/adguard-debian"
-          tar --exclude=.git --exclude=.github -cf - . | tar -xf - -C "$RUNNER_TEMP/adguard-debian"
+          tar --exclude=.git --exclude=.github --exclude=.gitignore --exclude=README.md --exclude=LICENSE -cf - . | tar -xf - -C "$RUNNER_TEMP/adguard-debian"
           dpkg-deb --build --root-owner-group "$RUNNER_TEMP/adguard-debian" ../adguard-debian.deb
 
       - name: Validate package metadata
@@ -35,4 +35,4 @@ jobs:
           dpkg-deb --contents ../adguard-debian.deb
 
       - name: Run lintian
-        run: lintian --no-tag-display-limit ../adguard-debian.deb
+        run: lintian --tag-display-limit 0 ../adguard-debian.deb
