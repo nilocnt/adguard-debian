@@ -226,7 +226,7 @@ Please do not submit license keys, private configuration files, generated `.deb`
 
 ## License
 
-See [LICENSE](LICENSE) for the repository license. AdGuard CLI components included in the package remain subject to their applicable upstream licenses and redistribution terms.
+This packaging project is distributed under the [GNU General Public License v3.0](LICENSE). Upstream AdGuard CLI remain subject to their respective licenses and attribution requirements.
 
 ## Links
 
