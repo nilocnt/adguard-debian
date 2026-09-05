@@ -185,10 +185,16 @@ sudo rm -rf /var/lib/adguard-cli
 
 ## Building the package
 
-This repository contains a prepared Debian package tree. Build it with:
+This repository contains a prepared Debian package tree. Build it from a clean staging directory so repository metadata and root-level documentation are not included in the package:
 
 ```bash
-dpkg-deb --build --root-owner-group . ../adguard-debian_1.0.0-1_amd64.deb
+staging_dir="$(mktemp -d)"
+trap 'rm -rf "$staging_dir"' EXIT
+tar --exclude=.git --exclude=.github --exclude=.gitignore \
+    --exclude=README.md --exclude=LICENSE \
+    -cf - . | tar -xf - -C "$staging_dir"
+dpkg-deb --build --root-owner-group \
+    "$staging_dir" ../adguard-debian_1.0.0-1_amd64.deb
 ```
 
 Inspect the generated package with:
