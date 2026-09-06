@@ -523,6 +523,30 @@ handle_uninstall() {
   echo 'AdGuard CLI has been uninstalled successfully'
 }
 
+# Function configure_service_account finds or creates the service identity.
+configure_service_account() {
+  if getent passwd AdGuard >/dev/null 2>&1; then
+    service_user='AdGuard'
+  elif getent passwd adguard >/dev/null 2>&1; then
+    service_user='adguard'
+  else
+    service_user='adguard'
+    if getent group "$service_user" >/dev/null 2>&1; then
+      useradd --system --gid "$service_user" --home-dir /var/lib/adguard \
+        --create-home --shell /usr/sbin/nologin "$service_user"
+    else
+      useradd --system --user-group --home-dir /var/lib/adguard \
+        --create-home --shell /usr/sbin/nologin "$service_user"
+    fi
+  fi
+
+  service_group="$(id -gn "$service_user")"
+  service_home="$(getent passwd "$service_user" | awk -F: '{ print $6 }')"
+  if [ -z "$service_home" ]; then
+    error_exit "Cannot determine the home directory of service user '$service_user'"
+  fi
+}
+
 # Function install_service installs the systemd unit and its system-wide link.
 install_service() {
   if [ "$os" != 'linux' ]; then
@@ -534,6 +558,36 @@ install_service() {
   service_link='/etc/systemd/system/adguard-cli.service'
   service_tmp="$(mktemp)"
 
+  if [ "$(id -u)" -eq 0 ]; then
+    configure_service_account
+  else
+    if ! sudo sh -c '
+      if getent passwd AdGuard >/dev/null 2>&1; then
+        exit 0
+      elif getent passwd adguard >/dev/null 2>&1; then
+        exit 0
+      elif getent group adguard >/dev/null 2>&1; then
+        useradd --system --gid adguard --home-dir /var/lib/adguard \
+          --create-home --shell /usr/sbin/nologin adguard
+      else
+        useradd --system --user-group --home-dir /var/lib/adguard \
+          --create-home --shell /usr/sbin/nologin adguard
+      fi
+    '; then
+      rm -f "$service_tmp"
+      error_exit "Failed to create or identify the AdGuard service account"
+    fi
+    service_user="$(sudo sh -c 'if getent passwd AdGuard >/dev/null 2>&1; then echo AdGuard; else echo adguard; fi')"
+    service_group="$(sudo id -gn "$service_user")"
+    service_home="$(sudo getent passwd "$service_user" | awk -F: '{ print $6 }')"
+  fi
+
+  if [ -z "$service_group" ] || [ -z "$service_home" ]; then
+    rm -f "$service_tmp"
+    error_exit "Cannot determine the AdGuard service account details"
+  fi
+  log "Using service user '$service_user' and group '$service_group'"
+
   cat > "$service_tmp" <<'EOF'
 [Unit]
 Description=AdGuard CLI - DNS Filtering Client
@@ -542,8 +596,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=AdGuard
-Group=AdGuard
+User=SERVICE_USER
+Group=SERVICE_GROUP
 ExecStart=/usr/bin/adguard-cli start
 RemainAfterExit=yes
 ExecStop=/usr/bin/adguard-cli stop
@@ -553,34 +607,17 @@ ExecStartPre=/usr/bin/sleep 2
 [Install]
 WantedBy=multi-user.target
 EOF
+  sed -i "s/SERVICE_USER/$service_user/; s/SERVICE_GROUP/$service_group/" "$service_tmp"
 
   if [ "$(id -u)" -eq 0 ]; then
-    if ! getent passwd AdGuard >/dev/null; then
-      if getent group AdGuard >/dev/null; then
-        useradd --system --gid AdGuard --home-dir /var/lib/AdGuard \
-          --create-home --shell /usr/sbin/nologin AdGuard
-      else
-        useradd --system --user-group --home-dir /var/lib/AdGuard \
-          --create-home --shell /usr/sbin/nologin AdGuard
-      fi
-    fi
-    install -d -o AdGuard -g AdGuard -m 0750 /var/lib/AdGuard
+    install -d -o "$service_user" -g "$service_group" -m 0750 "$service_home"
     install -d -m 0755 "$service_dir"
     install -m 0644 "$service_tmp" "$service_file"
     ln -sfn "${output_dir}/${exe_name}" "/usr/bin/${exe_name}"
     ln -sfn "$service_file" "$service_link"
     systemctl daemon-reload
   else
-    if ! getent passwd AdGuard >/dev/null; then
-      if getent group AdGuard >/dev/null; then
-        sudo useradd --system --gid AdGuard --home-dir /var/lib/AdGuard \
-          --create-home --shell /usr/sbin/nologin AdGuard
-      else
-        sudo useradd --system --user-group --home-dir /var/lib/AdGuard \
-          --create-home --shell /usr/sbin/nologin AdGuard
-      fi
-    fi
-    sudo install -d -o AdGuard -g AdGuard -m 0750 /var/lib/AdGuard
+    sudo install -d -o "$service_user" -g "$service_group" -m 0750 "$service_home"
     sudo install -d -m 0755 "$service_dir"
     sudo install -m 0644 "$service_tmp" "$service_file"
     sudo ln -sfn "${output_dir}/${exe_name}" "/usr/bin/${exe_name}"

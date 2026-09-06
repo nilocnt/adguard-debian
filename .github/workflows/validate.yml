@@ -33,3 +33,6 @@ jobs:
           grep -F "service_file=\"\${service_dir}/adguard-cli.service\"" install.sh
           grep -F "service_link='/etc/systemd/system/adguard-cli.service'" install.sh
           grep -F "ln -sfn \"\$service_file\" \"\$service_link\"" install.sh
+          grep -F "configure_service_account()" install.sh
+          grep -F 'User=SERVICE_USER' install.sh
+          grep -F 'Group=SERVICE_GROUP' install.sh
