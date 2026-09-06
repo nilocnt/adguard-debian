@@ -1,13 +1,8 @@
-# Debian build artifacts
-*.deb
-*.changes
-*.dsc
-*.tar.gz
-debian/tmp/
-debian/adguard-debian/
-debian/*.log
+# Downloaded release archives
+adguard-cli-*.tar.gz
+adguard-cli-*.zip
 
-# Build directories
+# Build and staging directories
 build/
 dist/
 .build/

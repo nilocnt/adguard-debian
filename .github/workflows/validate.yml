@@ -1,0 +1,35 @@
+name: Validate installer
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate shell syntax
+        run: sh -n install.sh
+
+      - name: Validate service file
+        run: |
+          test -f adguard-cli.service
+          grep -Fx 'User=AdGuard' adguard-cli.service
+          grep -Fx 'Group=AdGuard' adguard-cli.service
+          grep -Fx 'ExecStart=/usr/bin/adguard-cli start' adguard-cli.service
+
+      - name: Validate installer references
+        run: |
+          grep -F "service_file=\"\${service_dir}/adguard-cli.service\"" install.sh
+          grep -F "service_link='/etc/systemd/system/adguard-cli.service'" install.sh
+          grep -F "ln -sfn \"\$service_file\" \"\$service_link\"" install.sh

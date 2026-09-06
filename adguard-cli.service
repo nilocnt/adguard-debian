@@ -1,0 +1,17 @@
+[Unit]
+Description=AdGuard CLI - DNS Filtering Client
+After=network.target network-online.target systemd-resolved.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=AdGuard
+Group=AdGuard
+ExecStart=/usr/bin/adguard-cli start
+RemainAfterExit=yes
+ExecStop=/usr/bin/adguard-cli stop
+# Adiciona um atraso de 2 segundos antes de iniciar no boot para garantir a rede
+ExecStartPre=/usr/bin/sleep 2
+
+[Install]
+WantedBy=multi-user.target
