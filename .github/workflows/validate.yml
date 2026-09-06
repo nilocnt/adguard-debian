@@ -24,8 +24,8 @@ jobs:
       - name: Validate service file
         run: |
           test -f adguard-cli.service
-          grep -Fx 'User=AdGuard' adguard-cli.service
-          grep -Fx 'Group=AdGuard' adguard-cli.service
+          grep -Fx 'User=SERVICE_USER' adguard-cli.service
+          grep -Fx 'Group=SERVICE_GROUP' adguard-cli.service
           grep -Fx 'ExecStart=/usr/bin/adguard-cli start' adguard-cli.service
 
       - name: Validate installer references
@@ -36,3 +36,4 @@ jobs:
           grep -F "configure_service_account()" install.sh
           grep -F 'User=SERVICE_USER' install.sh
           grep -F 'Group=SERVICE_GROUP' install.sh
+          ! grep -E '(^|[[:space:]])(useradd|groupadd)([[:space:]]|$)' install.sh

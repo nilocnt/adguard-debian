@@ -39,31 +39,31 @@ It also creates:
 /etc/systemd/system/adguard-cli.service -> /usr/lib/adguard-cli/adguard-cli.service
 ```
 
-The installer detects an existing `AdGuard` or `adguard` service account. If
-neither exists, it creates the `adguard` system user and group with home
-directory `/var/lib/adguard`. The generated service unit uses the detected
-user and its primary group automatically.
+The installer does not create or modify a service user or group. It identifies
+the current user running the installer (or `SUDO_USER` when invoked with
+`sudo`) and replaces the `SERVICE_USER` and `SERVICE_GROUP` placeholders in
+the generated service unit with that user's name and primary group.
 
 The service is not started automatically before AdGuard CLI has been
 configured. This avoids a restart loop on a fresh installation.
 
 ## Configuration and activation
 
-Configure AdGuard CLI as the detected service user. For a new installation:
+Configure AdGuard CLI as the user that will run the service:
 
 ```bash
-sudo -u adguard env \
-  HOME=/var/lib/adguard \
-  XDG_DATA_HOME=/var/lib/adguard/.local/share \
+sudo env \
+  HOME="$HOME" \
+  XDG_DATA_HOME="$HOME/.local/share" \
   /usr/bin/adguard-cli config
 ```
 
 Activate a license when required:
 
 ```bash
-sudo -u adguard env \
-  HOME=/var/lib/adguard \
-  XDG_DATA_HOME=/var/lib/adguard/.local/share \
+sudo env \
+  HOME="$HOME" \
+  XDG_DATA_HOME="$HOME/.local/share" \
   /usr/bin/adguard-cli activate YOUR-ACTIVATION-CODE
 ```
 
@@ -95,8 +95,7 @@ The system-wide link is:
 /etc/systemd/system/adguard-cli.service
 ```
 
-The service unit uses the detected service account and its primary group and
-runs:
+The service unit uses the installer user's account and primary group and runs:
 
 ```text
 /usr/bin/adguard-cli start

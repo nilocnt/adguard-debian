@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=AdGuard
-Group=AdGuard
+User=SERVICE_USER
+Group=SERVICE_GROUP
 ExecStart=/usr/bin/adguard-cli start
 RemainAfterExit=yes
 ExecStop=/usr/bin/adguard-cli stop
