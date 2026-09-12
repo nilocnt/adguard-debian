@@ -133,6 +133,29 @@ The service link, service file, `/usr/bin/adguard-cli` link, and installed
 program files are removed. The service account and its data are preserved so
 that an accidental reinstall does not delete configuration.
 
+## Tray indicator
+
+For a visual status indicator for the global systemd service, run the setup
+script as the desktop user:
+
+```bash
+./setup-adguard-tray.sh
+```
+
+The script installs the required packages, creates green and red status icons,
+installs the tray application under `~/.local/bin/`, and enables automatic
+startup with the graphical session. The tray application controls the global
+`adguard-cli.service` through PolicyKit and checks its status every five
+seconds.
+
+Start it immediately with:
+
+```bash
+~/.local/bin/adguard-cli-tray
+```
+
+Run the setup script as the regular desktop user, not with `sudo`.
+
 ## License
 
 The installer changes and repository documentation are distributed under the
