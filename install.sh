@@ -291,16 +291,9 @@ verify_hint() {
   fi
 }
 
-# Function install_systemd_service installs the systemd unit for the CLI.
-install_systemd_service() {
-  [ "$os" = 'linux' ] || return 0
-
-  service_source="$(dirname "$0")/${systemd_service}"
-  if [ ! -f "$service_source" ]
-  then
-    error_exit "Systemd service file not found: '$service_source'"
-  fi
-
+# Function configure_service_account sets service_user and service_group to the
+# account that runs the installer, without creating any users or groups.
+configure_service_account() {
   service_user="${SUDO_USER:-${USER:-}}"
   if [ -z "$service_user" ] || ! getent passwd "$service_user" > /dev/null 2>&1
   then
@@ -312,29 +305,44 @@ install_systemd_service() {
   then
     error_exit "Cannot determine the primary group of user '$service_user'"
   fi
+}
+
+# Function install_systemd_service installs the systemd unit for the CLI.
+install_systemd_service() {
+  [ "$os" = 'linux' ] || return 0
+
+  service_source="$(dirname "$0")/${systemd_service}"
+  if [ ! -f "$service_source" ]
+  then
+    error_exit "Systemd service file not found: '$service_source'"
+  fi
+
+  configure_service_account
+
+  service_dir="$output_dir"
+  service_file="${service_dir}/adguard-cli.service"
+  service_link='/etc/systemd/system/adguard-cli.service'
 
   service_temp="$(mktemp "${TMPDIR:-/tmp}/${systemd_service}.XXXXXX")"
-  escaped_output_dir="$(printf '%s\n' "$output_dir" | sed 's/[\/&|]/\\&/g')"
   escaped_service_user="$(printf '%s\n' "$service_user" | sed 's/[\/&|]/\\&/g')"
   escaped_service_group="$(printf '%s\n' "$service_group" | sed 's/[\/&|]/\\&/g')"
   if ! sed \
-    -e "s|@ADGUARD_CLI_PATH@|${escaped_output_dir}/${exe_name}|g" \
-    -e "s|@ADGUARD_CLI_USER@|${escaped_service_user}|g" \
-    -e "s|@ADGUARD_CLI_GROUP@|${escaped_service_group}|g" \
+    -e "s|^User=SERVICE_USER$|User=${escaped_service_user}|" \
+    -e "s|^Group=SERVICE_GROUP$|Group=${escaped_service_group}|" \
     "$service_source" > "$service_temp"
   then
     rm -f "$service_temp"
     error_exit "Cannot prepare systemd service file"
   fi
 
-  if ! sudo install -o root -g root -m 0644 "$service_temp" "${output_dir}/${systemd_service}"
+  if ! sudo install -o root -g root -m 0644 "$service_temp" "$service_file"
   then
     rm -f "$service_temp"
     error_exit "Cannot install systemd service file"
   fi
   rm -f "$service_temp"
 
-  if ! sudo ln -sfn "${output_dir}/${systemd_service}" "/etc/systemd/system/${systemd_service}"
+  if ! sudo ln -sfn "$service_file" "$service_link"
   then
     error_exit "Cannot create systemd service link"
   fi
@@ -344,7 +352,7 @@ install_systemd_service() {
     error_exit "Cannot reload systemd configuration"
   fi
 
-  log "Systemd service installed at '${output_dir}/${systemd_service}'"
+  log "Systemd service installed at '$service_file'"
 }
 
 # Function remove_systemd_service removes the unit installed by this script.
