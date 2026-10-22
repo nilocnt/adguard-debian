@@ -20,8 +20,9 @@ package or installer.
 Download the installer and run:
 
 ```bash
+cd ~/Downloads
 chmod +x install.sh
-sudo ./install.sh
+sh ./install.sh -v
 ```
 
 The installer downloads the official release archive and installs the files
