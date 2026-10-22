@@ -37,7 +37,6 @@ parse_opts() {
       ;;
     'h')
       usage
-      exit 0
       ;;
     'o')
       output_dir="$OPTARG"
@@ -54,7 +53,6 @@ parse_opts() {
     *)
       log "bad option $OPTARG"
       usage
-      exit 1
     ;;
     esac
   done
@@ -117,6 +115,22 @@ set_os() {
   log "Operating system: $os"
 }
 
+# Function check_macos_version refuses to install or update on macOS versions older
+# than the minimum the binary supports (macOS 11.0, Big Sur). Big Sur reports either
+# "11.x" or, in compatibility mode, "10.16", so 10.16 is the lowest accepted version.
+check_macos_version() {
+  [ "$os" = 'macos' ] || return 0
+
+  macos_version="$( sw_vers -productVersion 2>/dev/null )"
+  # If the version can't be determined, don't block the installation.
+  [ -n "$macos_version" ] || return 0
+
+  if version_lt "$macos_version" '10.16'
+  then
+    error_exit "AdGuard CLI requires macOS 11.0 (Big Sur) or newer, but macOS ${macos_version} was detected."
+  fi
+}
+
 # Function set_cpu sets the cpu if needed and validates the value.
 set_cpu() {
   # For macOS there is universal binary, so we don't need to set cpu
@@ -155,11 +169,11 @@ set_cpu() {
   # Validate.
   case "$cpu"
   in
-  ('x86_64'|'aarch64')
+  ('x86_64'|'aarch64'|'armv7')
     # All right, go on.
     ;;
   (*)
-    error_exit "Unsupported CPU type: $cpu. Only x86_64 and aarch64 are supported."
+    error_exit "Unsupported CPU type: $cpu. Only x86_64, aarch64 and armv7 are supported."
     ;;
   esac
 
@@ -277,6 +291,87 @@ verify_hint() {
   fi
 }
 
+# Function install_systemd_service installs the systemd unit for the CLI.
+install_systemd_service() {
+  [ "$os" = 'linux' ] || return 0
+
+  service_source="$(dirname "$0")/${systemd_service}"
+  if [ ! -f "$service_source" ]
+  then
+    error_exit "Systemd service file not found: '$service_source'"
+  fi
+
+  service_user="${SUDO_USER:-${USER:-}}"
+  if [ -z "$service_user" ] || ! getent passwd "$service_user" > /dev/null 2>&1
+  then
+    error_exit "Cannot identify the user running the installer"
+  fi
+
+  service_group="$(id -gn "$service_user")"
+  if [ -z "$service_group" ]
+  then
+    error_exit "Cannot determine the primary group of user '$service_user'"
+  fi
+
+  service_temp="$(mktemp "${TMPDIR:-/tmp}/${systemd_service}.XXXXXX")"
+  escaped_output_dir="$(printf '%s\n' "$output_dir" | sed 's/[\/&|]/\\&/g')"
+  escaped_service_user="$(printf '%s\n' "$service_user" | sed 's/[\/&|]/\\&/g')"
+  escaped_service_group="$(printf '%s\n' "$service_group" | sed 's/[\/&|]/\\&/g')"
+  if ! sed \
+    -e "s|@ADGUARD_CLI_PATH@|${escaped_output_dir}/${exe_name}|g" \
+    -e "s|@ADGUARD_CLI_USER@|${escaped_service_user}|g" \
+    -e "s|@ADGUARD_CLI_GROUP@|${escaped_service_group}|g" \
+    "$service_source" > "$service_temp"
+  then
+    rm -f "$service_temp"
+    error_exit "Cannot prepare systemd service file"
+  fi
+
+  if ! sudo install -o root -g root -m 0644 "$service_temp" "${output_dir}/${systemd_service}"
+  then
+    rm -f "$service_temp"
+    error_exit "Cannot install systemd service file"
+  fi
+  rm -f "$service_temp"
+
+  if ! sudo ln -sfn "${output_dir}/${systemd_service}" "/etc/systemd/system/${systemd_service}"
+  then
+    error_exit "Cannot create systemd service link"
+  fi
+
+  if ! sudo systemctl daemon-reload
+  then
+    error_exit "Cannot reload systemd configuration"
+  fi
+
+  log "Systemd service installed at '${output_dir}/${systemd_service}'"
+}
+
+# Function remove_systemd_service removes the unit installed by this script.
+remove_systemd_service() {
+  [ "$os" = 'linux' ] || return 0
+
+  systemd_service_link="/etc/systemd/system/${systemd_service}"
+  if [ -L "$systemd_service_link" ] && \
+      [ "$(readlink -f "$systemd_service_link")" = "$(readlink -f "${output_dir}/${systemd_service}")" ]
+  then
+    if ! sudo rm -f "$systemd_service_link"
+    then
+      error_exit "Cannot remove systemd service link"
+    fi
+  fi
+
+  if ! sudo rm -f "${output_dir}/${systemd_service}"
+  then
+    error_exit "Cannot remove systemd service file"
+  fi
+
+  if ! sudo systemctl daemon-reload
+  then
+    error_exit "Cannot reload systemd configuration"
+  fi
+}
+
 # Function unpack unpacks the passed archive depending on it's extension.
 unpack() {
   log "Unpacking package from '$pkg_name' into '$output_dir'"
@@ -296,15 +391,15 @@ unpack() {
   if [ -d "${output_dir}/${dir_name}/" ]; then
     # Special handling for already installed root helper. If destination file exists, place new file as .new.
     # Then after checking signature adguard_root_helper will replace itself with the new file.
+    # This is only needed for the root helper: it is self-updating and carries a SUID bit that the
+    # running process must preserve.
     if [ -f "${output_dir}/adguard_root_helper" ]; then
       mv -f "${output_dir}/${dir_name}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
       mv -f "${output_dir}/${dir_name}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
     fi
-    # Special handling for already installed Native Messaging helper.
-    if [ -f "${output_dir}/adguard_cli_nm" ]; then
-      mv -f "${output_dir}/${dir_name}/adguard_cli_nm" "${output_dir}/adguard_cli_nm.new"
-      mv -f "${output_dir}/${dir_name}/adguard_cli_nm.sig" "${output_dir}/adguard_cli_nm.new.sig"
-    fi
+    # Older installers wrongly used the root-helper scheme and left an adguard_cli_nm.new file behind;
+    # nothing ever reads that file, so remove any leftover here.
+    rm -f "${output_dir}/adguard_cli_nm.new" "${output_dir}/adguard_cli_nm.new.sig"
     # Move all remaining files into output_dir
     mv -f "${output_dir}/${dir_name}/"* "${output_dir}"
     rmdir "${output_dir}/${dir_name}"
@@ -318,7 +413,7 @@ unpack() {
   log "Package has been unpacked successfully"
 
   # Check for existing symlink or .nosymlink file
-  if [ -L "/usr/bin/${exe_name}" ] && \
+  if [ -L "/usr//bin/${exe_name}" ] && \
       [ "$(readlink -f "/usr/bin/${exe_name}")" = "$(readlink -f "${output_dir}/${exe_name}")" ]; then
     symlink_exists='1'
   fi
@@ -328,7 +423,7 @@ unpack() {
   elif [ -f "${output_dir}/.nosymlink" ]; then
     log "'.nosymlink' file exists in the installation directory. No further action taken."
   else
-    # Ask user about linking the binary to /usr/bin
+    # Ask user about linking the binary to /usr//bin
     printf "Would you like to link the binary to /usr/bin? [y/N] "
     read -r response < /dev/tty
     case "$response" in
@@ -412,6 +507,24 @@ apply_version() {
   pkg_name=$(echo "${pkg_name}" | sed -E "s/${exe_name}/${exe_name}-${version}/")
 }
 
+# version_lt returns success (0) if the first version is strictly lower than the second.
+# Both arguments are expected in major.minor.patch form; missing parts default to 0.
+version_lt() {
+  a_major=$(echo "$1" | sed -nE 's/^([0-9]+).*$/\1/p'); [ -z "$a_major" ] && a_major=0
+  a_minor=$(echo "$1" | sed -nE 's/^[0-9]+\.([0-9]+).*$/\1/p'); [ -z "$a_minor" ] && a_minor=0
+  a_patch=$(echo "$1" | sed -nE 's/^[0-9]+\.[0-9]+\.([0-9]+).*$/\1/p'); [ -z "$a_patch" ] && a_patch=0
+  b_major=$(echo "$2" | sed -nE 's/^([0-9]+).*$/\1/p'); [ -z "$b_major" ] && b_major=0
+  b_minor=$(echo "$2" | sed -nE 's/^[0-9]+\.([0-9]+).*$/\1/p'); [ -z "$b_minor" ] && b_minor=0
+  b_patch=$(echo "$2" | sed -nE 's/^[0-9]+\.[0-9]+\.([0-9]+).*$/\1/p'); [ -z "$b_patch" ] && b_patch=0
+
+  [ "$a_major" -lt "$b_major" ] && return 0
+  [ "$a_major" -gt "$b_major" ] && return 1
+  [ "$a_minor" -lt "$b_minor" ] && return 0
+  [ "$a_minor" -gt "$b_minor" ] && return 1
+  [ "$a_patch" -lt "$b_patch" ] && return 0
+  return 1
+}
+
 # Main function.
 configure() {
   if [ "$uninstall" -eq '1' ]
@@ -423,6 +536,10 @@ configure() {
   fi
 
   set_os
+  if [ "$uninstall" -ne '1' ]
+  then
+    check_macos_version
+  fi
   set_cpu
   parse_version
   check_out_dir
@@ -435,7 +552,15 @@ configure() {
     pkg_name="${exe_name}-${os}-${cpu}.${pkg_ext}"
   fi
   apply_version
-  url="https://github.com/AdguardTeam/AdGuardCLI/releases/download/v${version}-${channel}/${pkg_name}"
+  # Releases before 1.5.0 use the v${version}-${channel} tag format;
+  # 1.5.0 and later use v${version} (the prerelease suffix is part of the version string).
+  if version_lt "$version" '1.5.0'
+  then
+    release_tag="v${version}-${channel}"
+  else
+    release_tag="v${version}"
+  fi
+  url="https://github.com/AdguardTeam/AdGuardCLI/releases/download/${release_tag}/${pkg_name}"
 
   readonly output_dir url pkg_name
 
@@ -465,9 +590,9 @@ handle_uninstall() {
   log 'Removing browser integration manifests...'
   "${output_dir}/${exe_name}" install-browser-integration --uninstall 2>/dev/null || true
 
-  remove_service
   remove_existing
   remove_existing_uninstall
+  remove_systemd_service
 
   # Check if the directory is empty
   if [ -z "$(ls -A "${output_dir}")" ]
@@ -523,104 +648,6 @@ handle_uninstall() {
   echo 'AdGuard CLI has been uninstalled successfully'
 }
 
-# Function configure_service_account identifies the current service identity.
-configure_service_account() {
-  service_user="${SUDO_USER:-${USER:-}}"
-  if [ -z "$service_user" ] || ! getent passwd "$service_user" >/dev/null 2>&1; then
-    error_exit "Cannot identify the user running the installer"
-  fi
-
-  service_group="$(id -gn "$service_user")"
-}
-
-# Function install_service installs the systemd unit and its system-wide link.
-install_service() {
-  if [ "$os" != 'linux' ]; then
-    return 0
-  fi
-
-  service_dir='/usr/lib/adguard-cli'
-  service_file="${service_dir}/adguard-cli.service"
-  service_link='/etc/systemd/system/adguard-cli.service'
-  service_tmp="$(mktemp)"
-
-  if [ "$(id -u)" -eq 0 ]; then
-    configure_service_account
-  else
-    service_user="${USER:-}"
-    if [ -z "$service_user" ] || ! getent passwd "$service_user" >/dev/null 2>&1; then
-      rm -f "$service_tmp"
-      error_exit "Cannot identify the user running the installer"
-    fi
-    service_group="$(sudo id -gn "$service_user")"
-  fi
-
-  if [ -z "$service_group" ]; then
-    rm -f "$service_tmp"
-    error_exit "Cannot determine the primary group of user '$service_user'"
-  fi
-  log "Using service user '$service_user' and group '$service_group'"
-
-  cat > "$service_tmp" <<'EOF'
-[Unit]
-Description=AdGuard CLI - DNS Filtering Client
-After=network.target network-online.target systemd-resolved.service
-Wants=network-online.target
-
-[Service]
-Type=oneshot
-User=SERVICE_USER
-Group=SERVICE_GROUP
-ExecStart=/usr/bin/adguard-cli start
-RemainAfterExit=yes
-ExecStop=/usr/bin/adguard-cli stop
-# Adiciona um atraso de 2 segundos antes de iniciar no boot para garantir a rede
-ExecStartPre=/usr/bin/sleep 2
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  sed -i "s/SERVICE_USER/$service_user/; s/SERVICE_GROUP/$service_group/" "$service_tmp"
-
-  if [ "$(id -u)" -eq 0 ]; then
-    install -d -m 0755 "$service_dir"
-    install -m 0644 "$service_tmp" "$service_file"
-    ln -sfn "${output_dir}/${exe_name}" "/usr/bin/${exe_name}"
-    ln -sfn "$service_file" "$service_link"
-    systemctl daemon-reload
-  else
-    sudo install -d -m 0755 "$service_dir"
-    sudo install -m 0644 "$service_tmp" "$service_file"
-    sudo ln -sfn "${output_dir}/${exe_name}" "/usr/bin/${exe_name}"
-    sudo ln -sfn "$service_file" "$service_link"
-    sudo systemctl daemon-reload
-  fi
-
-  rm -f "$service_tmp"
-  log "Systemd service installed at '$service_file'"
-  log "Systemd service link created at '$service_link'"
-}
-
-# Function remove_service removes the installed systemd unit and its link.
-remove_service() {
-  if [ "$os" != 'linux' ]; then
-    return 0
-  fi
-
-  service_file='/usr/lib/adguard-cli/adguard-cli.service'
-  service_link='/etc/systemd/system/adguard-cli.service'
-
-  if [ "$(id -u)" -eq 0 ]; then
-    systemctl disable --now adguard-cli.service >/dev/null 2>&1 || true
-    rm -f "$service_link" "$service_file" "/usr/bin/${exe_name}"
-    systemctl daemon-reload
-  else
-    sudo systemctl disable --now adguard-cli.service >/dev/null 2>&1 || true
-    sudo rm -f "$service_link" "$service_file" "/usr/bin/${exe_name}"
-    sudo systemctl daemon-reload
-  fi
-}
-
 # Function remove_existing removes the existing package from the output directory before installing a new one.
 remove_existing() {
   log 'Remove existing package...'
@@ -657,6 +684,8 @@ remove_existing_uninstall() {
     # Remove adguard_cli_nm.sig
     rm -f "${output_dir}/adguard_cli_nm.sig"
     log "'adguard_cli_nm.sig' has been removed from '${output_dir}'"
+    # Remove stale adguard_cli_nm.new files left by older installers
+    rm -f "${output_dir}/adguard_cli_nm.new" "${output_dir}/adguard_cli_nm.new.sig"
 }
 
 # Function checks if the package is already present in the output directory.
@@ -756,6 +785,7 @@ report_success() {
 install_cert_script='install_cert.sh'
 bash_completion_script='bash-completion.sh'
 defaults_zip='defaults.zip'
+systemd_service='adguard-cli.service'
 exe_name='adguard-cli'
 output_dir=''
 url=''
@@ -763,7 +793,7 @@ channel='release'
 verbose='0'
 cpu=''
 os=''
-version='1.4.13'
+version='1.5.0'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
@@ -781,7 +811,7 @@ check_package
 handle_existing
 
 unpack
-install_service
+install_systemd_service
 verify_hint
 
 report_success
