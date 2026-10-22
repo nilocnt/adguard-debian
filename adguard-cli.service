@@ -10,7 +10,6 @@ Group=SERVICE_GROUP
 ExecStart=/usr/bin/adguard-cli start
 RemainAfterExit=yes
 ExecStop=/usr/bin/adguard-cli stop
-# Adiciona um atraso de 2 segundos antes de iniciar no boot para garantir a rede
 ExecStartPre=/usr/bin/sleep 2
 
 [Install]
