@@ -50,36 +50,32 @@ configured. This avoids a restart loop on a fresh installation.
 
 ## Configuration and activation
 
-Configure AdGuard CLI as the user that will run the service:
+- Get a free trial or activate your license
+Log in or sign up to get a free 14-day trial of AdGuard for Linux or activate your license:
 
 ```bash
-sudo env \
-  HOME="$HOME" \
-  XDG_DATA_HOME="$HOME/.local/share" \
-  /usr/bin/adguard-cli config
+adguard-cli activate
 ```
 
-Activate a license when required:
+- Complete the initial setup
+Run the AdGuard configuration wizard:
 
 ```bash
-sudo env \
-  HOME="$HOME" \
-  XDG_DATA_HOME="$HOME/.local/share" \
-  /usr/bin/adguard-cli activate YOUR-ACTIVATION-CODE
+adguard-cli configure
 ```
 
-Then enable and start the service:
+- Enable protection
+Enable AdGuard for Linux to start blocking ads and trackers in all browsers and apps:
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now adguard-cli.service
+adguard-cli start
 ```
 
-Check its status and logs:
+- Adjust your settings
+Get a list of all available AdGuard commands to customize AdGuard to your needs:
 
 ```bash
-systemctl status adguard-cli.service
-sudo journalctl -u adguard-cli.service -f
+adguard-cli --help-all
 ```
 
 ## Service
