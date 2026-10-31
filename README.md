@@ -97,13 +97,21 @@ sudo systemctl enable --now adguard-cli.service
 ```text
 systemctl is-enabled adguard-cli.service
 ```
-Deve retornar `enabled`
+`enabled`
 
 - Consultar o status completo do serviço:
 
 ```text
 sudo systemctl status adguard-cli.service
 ```
+
+Outros comandos úteis:
+
+ • Desativar do boot: `sudo systemctl disable adguard-cli.service`
+
+ • Iniciar agora (sem mexer no boot): `sudo systemctl start adguard-cli.service`
+
+ • Parar agora: `sudo systemctl stop adguard-cli.service`
 
 ## Options
 
