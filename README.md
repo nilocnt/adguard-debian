@@ -80,22 +80,29 @@ adguard-cli --help-all
 
 ## Service
 
-The installed unit is intentionally kept at:
+- Ativar o serviço para iniciar no boot:
 
 ```text
-/usr/lib/adguard-cli/adguard-cli.service
+sudo systemctl enable adguard-cli.service
 ```
 
-The system-wide link is:
+- Ativar e iniciar o serviço imediatamente (se ele ainda não estiver rodando agora):
 
 ```text
-/etc/systemd/system/adguard-cli.service
+sudo systemctl enable --now adguard-cli.service
 ```
 
-The service unit uses the installer user's account and primary group and runs:
+- Verificar se ele realmente foi habilitado:
 
 ```text
-/usr/bin/adguard-cli start
+systemctl is-enabled adguard-cli.service
+```
+Deve retornar `enabled`
+
+- Consultar o status completo do serviço:
+
+```text
+sudo systemctl status adguard-cli.service
 ```
 
 ## Options
